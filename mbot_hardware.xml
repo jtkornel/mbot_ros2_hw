@@ -1,0 +1,9 @@
+<library path="mbot_hardware">
+  <class name="mbot_hardware/MbotSerial"
+         type="mbot_hardware::MbotSerial"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface.
+    </description>
+  </class>
+</library>

@@ -1,9 +1,9 @@
 mbot_hardware
 ==========================================
 
-ros2_control support for Makeblock mBot
+ROS2 ros2_control hardware interface for Makeblock mbot
 
-![Licence](https://img.shields.io/badge/License-BSD-3-Clause-blue.svg)
+![Licence](https://img.shields.io/badge/License-Apache-2.0-blue.svg)
 
 # Quick Start Instructions
 
@@ -163,3 +163,6 @@ Here are some useful references for developing with ROS2:
  - [Colcon Documentation](https://colcon.readthedocs.io/en/released/#)
  - [ROS2 Design Documentation](https://design.ros2.org/)
  - [ROS2 Launch Architecture](https://github.com/ros2/launch/blob/master/launch/doc/source/architecture.rst)
+
+Pluginlib-Library: mbot_hardware
+Plugin: mbot_hardware/MbotSerial (hardware_interface::SystemInterface)
