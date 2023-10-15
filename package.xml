@@ -11,6 +11,8 @@
 
   <depend>hardware_interface</depend>
 
+  <depend>libmbot</depend>
+
   <depend>pluginlib</depend>
 
   <depend>rclcpp</depend>

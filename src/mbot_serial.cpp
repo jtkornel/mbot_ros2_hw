@@ -16,6 +16,9 @@
 #include <limits>
 #include <vector>
 
+#include <boards.hpp>
+#include <comm.hpp>
+
 #include "mbot_hardware/mbot_serial.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -30,9 +33,64 @@ hardware_interface::CallbackReturn MbotSerial::on_init(
     return CallbackReturn::ERROR;
   }
 
-  // TODO(anyone): read parameters and initialize the hardware
-  hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-  hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_velocity_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+
+  for (const hardware_interface::ComponentInfo & joint : info_.joints)
+  {
+    // Check number and type of command interfaces
+    if (joint.command_interfaces.size() != 1)
+    {
+      RCLCPP_FATAL(
+        rclcpp ::get_logger("MbotSerialHardware"),
+        "Joint '%s' has %zu command interfaces found. 1 expected.", joint.name.c_str(),
+        joint.command_interfaces.size());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    if (joint.command_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
+    {
+      RCLCPP_FATAL(
+        rclcpp ::get_logger("MbotSerialHardware"),
+        "Command interface '%s' of joint '%s' is not '%s'.",
+        joint.command_interfaces[0].name.c_str(), joint.name.c_str(),
+        hardware_interface::HW_IF_VELOCITY);
+    }
+
+    // Check number and type of state interfaces, should have position and velocity (in that order)
+
+    if (joint.state_interfaces.size() != 2)
+    {
+      RCLCPP_FATAL(
+        rclcpp ::get_logger("MbotSerialHardware"),
+        "Joint '%s' has %zu state interfaces found. 2 expected.", joint.name.c_str(),
+        joint.state_interfaces.size());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION)
+    {
+      RCLCPP_FATAL(
+        rclcpp ::get_logger("MbotSerialHardware"),
+        "State interface '%s' of joint '%s' is not '%s'.", joint.state_interfaces[0].name.c_str(),
+        joint.name.c_str(), hardware_interface::HW_IF_POSITION);
+    }
+
+    if (joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
+    {
+      RCLCPP_FATAL(
+        rclcpp ::get_logger("MbotSerialHardware"),
+        "State interface '%s' of joint '%s' is not '%s'.", joint.state_interfaces[1].name.c_str(),
+        joint.name.c_str(), hardware_interface::HW_IF_VELOCITY);
+    }
+  }
+
+  io_context_ = std::make_shared<asio::io_context>();
+  mbot_com_ =
+    std::make_shared<libmbot::Comm>(*io_context_, info_.hardware_parameters["serial_port"]);
+
+  mbot_board_ = std::make_shared<libmbot::AurigaBoard>(*mbot_com_);
 
   return CallbackReturn::SUCCESS;
 }
@@ -51,8 +109,9 @@ std::vector<hardware_interface::StateInterface> MbotSerial::export_state_interfa
   for (size_t i = 0; i < info_.joints.size(); ++i)
   {
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-      // TODO(anyone): insert correct interfaces
-      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_[i]));
+      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_position_states_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocity_states_[i]));
   }
 
   return state_interfaces;
@@ -64,8 +123,7 @@ std::vector<hardware_interface::CommandInterface> MbotSerial::export_command_int
   for (size_t i = 0; i < info_.joints.size(); ++i)
   {
     command_interfaces.emplace_back(hardware_interface::CommandInterface(
-      // TODO(anyone): insert correct interfaces
-      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_commands_[i]));
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocity_commands_[i]));
   }
 
   return command_interfaces;
@@ -90,7 +148,43 @@ hardware_interface::CallbackReturn MbotSerial::on_deactivate(
 hardware_interface::return_type MbotSerial::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // TODO(anyone): read robot states
+  // Read position from motor 1 (in degrees)
+  auto maybe_pos0 = mbot_board_->m_motor_1.get_pos.request();
+
+  if (maybe_pos0)
+  {
+    double pos0_rad = (*maybe_pos0) * 2.0 * M_PI / 360.0;
+    hw_position_states_[0] = pos0_rad;
+  }
+
+  // Read position from motor 2 (in degrees)
+  auto maybe_pos1 = mbot_board_->m_motor_2.get_pos.request();
+
+  if (maybe_pos1)
+  {
+    double pos1_rad = (*maybe_pos1) * 2.0 * M_PI / 360.0;
+    hw_position_states_[1] = pos1_rad;
+  }
+
+  // Read velocity from motor 1 (in RPM)
+  auto maybe_vel0 = mbot_board_->m_motor_1.get_speed.request();
+
+  if (maybe_vel0)
+  {
+    double vel0_rad_s = (*maybe_vel0) / 60.0f * 2.0 * M_PI;
+
+    hw_velocity_states_[0] = vel0_rad_s;
+  }
+
+  // Read velocity from motor 2 (in RPM)
+  auto maybe_vel1 = mbot_board_->m_motor_2.get_speed.request();
+
+  if (maybe_vel1)
+  {
+    double vel1_rad_s = (*maybe_vel1) / 60.0f * 2.0 * M_PI;
+
+    hw_velocity_states_[1] = vel1_rad_s;
+  }
 
   return hardware_interface::return_type::OK;
 }
@@ -98,7 +192,11 @@ hardware_interface::return_type MbotSerial::read(
 hardware_interface::return_type MbotSerial::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // TODO(anyone): write robot's commands'
+  float vel0_rpm = hw_velocity_commands_[0] / (2.0 * M_PI) * 60.0;
+  mbot_board_->m_motor_1.set_speed_motion.request(vel0_rpm);
+
+  float vel1_rpm = hw_velocity_commands_[1] / (2.0 * M_PI) * 60.0;
+  mbot_board_->m_motor_2.set_speed_motion.request(vel1_rpm);
 
   return hardware_interface::return_type::OK;
 }
