@@ -198,7 +198,7 @@ hardware_interface::return_type MbotSerial::read(
 
   if (maybe_pos1)
   {
-    double pos1_rad = (*maybe_pos1) * 2.0 * M_PI / 360.0;
+    double pos1_rad = -(*maybe_pos1) * 2.0 * M_PI / 360.0;
     hw_position_states_[1] = pos1_rad;
   }
 
@@ -217,11 +217,12 @@ hardware_interface::return_type MbotSerial::read(
 
   if (maybe_vel1)
   {
-    double vel1_rad_s = (*maybe_vel1) / 60.0f * 2.0 * M_PI;
+    double vel1_rad_s = -(*maybe_vel1) / 60.0f * 2.0 * M_PI;
 
     hw_velocity_states_[1] = vel1_rad_s;
   }
 
+  // RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Done read");
   return hardware_interface::return_type::OK;
 }
 
@@ -231,7 +232,7 @@ hardware_interface::return_type MbotSerial::write(
   float vel0_rpm = hw_velocity_commands_[0] / (2.0 * M_PI) * 60.0;
   mbot_board_->m_motor_1.set_speed_motion.request(vel0_rpm);
 
-  float vel1_rpm = hw_velocity_commands_[1] / (2.0 * M_PI) * 60.0;
+  float vel1_rpm = -hw_velocity_commands_[1] / (2.0 * M_PI) * 60.0;
   mbot_board_->m_motor_2.set_speed_motion.request(vel1_rpm);
 
   return hardware_interface::return_type::OK;
