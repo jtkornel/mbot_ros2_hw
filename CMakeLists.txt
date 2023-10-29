@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 project(mbot_hardware)
 
+option(USE_SANITIZERS "Enable various runtime sanitizers")
+
+if(USE_SANITIZERS)
+    set(SANITIZER_FLAGS "-fsanitize=undefined,leak,address -fstack-protector-all -static-libasan")
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -24,7 +30,7 @@ target_include_directories(
     include
 )
 
-target_link_libraries(mbot_hardware libmbot::libmbot)
+target_link_libraries(mbot_hardware ${SANITIZER_FLAGS} libmbot::libmbot)
 
 ament_target_dependencies(
     mbot_hardware
