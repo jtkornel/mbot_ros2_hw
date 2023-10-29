@@ -32,13 +32,14 @@ hardware_interface::CallbackReturn MbotSerial::on_init(
   {
     return CallbackReturn::ERROR;
   }
-
   hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_velocity_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
   for (const hardware_interface::ComponentInfo & joint : info_.joints)
   {
+    RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Checking joint %s:", joint.name.c_str());
+
     // Check number and type of command interfaces
     if (joint.command_interfaces.size() != 1)
     {
@@ -86,9 +87,36 @@ hardware_interface::CallbackReturn MbotSerial::on_init(
     }
   }
 
+  RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Creating io context");
+
   io_context_ = std::make_shared<asio::io_context>();
+
+  if (info_.hardware_parameters.find("serial_port") == info_.hardware_parameters.end())
+  {
+    RCLCPP_FATAL(
+      rclcpp ::get_logger("MbotSerialHardware"),
+      "Parameter 'serial_port' not found in hardware parameters.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (!io_context_)
+  {
+    RCLCPP_FATAL(rclcpp ::get_logger("MbotSerialHardware"), "Failed to create io_context.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Creating mbot_com");
+
   mbot_com_ =
     std::make_shared<libmbot::Comm>(*io_context_, info_.hardware_parameters["serial_port"]);
+
+  RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Created mbot_com");
+
+  if (!mbot_com_)
+  {
+    RCLCPP_FATAL(rclcpp ::get_logger("MbotSerialHardware"), "Failed to create mbot_com.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   mbot_board_ = std::make_shared<libmbot::AurigaBoard>(*mbot_com_);
 
@@ -148,7 +176,15 @@ hardware_interface::CallbackReturn MbotSerial::on_deactivate(
 hardware_interface::return_type MbotSerial::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // Read position from motor 1 (in degrees)
+  // RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "Starting read");
+  //  Read position from motor 1 (in degrees)
+
+  if (!mbot_board_)
+  {
+    RCLCPP_INFO(rclcpp::get_logger("MbotSerialHardware"), "No mbot_board");
+    return hardware_interface::return_type::OK;
+  }
+
   auto maybe_pos0 = mbot_board_->m_motor_1.get_pos.request();
 
   if (maybe_pos0)

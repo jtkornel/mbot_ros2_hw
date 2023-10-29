@@ -71,9 +71,9 @@ private:
   std::vector<double> hw_position_states_;
   std::vector<double> hw_velocity_states_;
 
-  std::shared_ptr<asio::io_context> io_context_;
-  std::shared_ptr<libmbot::Comm> mbot_com_;
-  std::shared_ptr<libmbot::AurigaBoard> mbot_board_;
+  std::shared_ptr<asio::io_context> io_context_ = nullptr;
+  std::shared_ptr<libmbot::Comm> mbot_com_ = nullptr;
+  std::shared_ptr<libmbot::AurigaBoard> mbot_board_ = nullptr;
 };
 
 }  // namespace mbot_hardware
