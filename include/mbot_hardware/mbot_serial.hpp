@@ -70,6 +70,7 @@ private:
   std::vector<double> hw_velocity_commands_;
   std::vector<double> hw_position_states_;
   std::vector<double> hw_velocity_states_;
+  bool sample_velocity_states_ = false;
 
   std::shared_ptr<asio::io_context> io_context_ = nullptr;
   std::shared_ptr<libmbot::Comm> mbot_com_ = nullptr;

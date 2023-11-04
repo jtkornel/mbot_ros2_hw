@@ -59,13 +59,14 @@ hardware_interface::CallbackReturn MbotSerial::on_init(
         hardware_interface::HW_IF_VELOCITY);
     }
 
-    // Check number and type of state interfaces, should have position and velocity (in that order)
+    // Check number and type of state interfaces, should have position and optionally velocity (in
+    // that order)
 
-    if (joint.state_interfaces.size() != 2)
+    if (joint.state_interfaces.size() > 2 || joint.state_interfaces.size() < 1)
     {
       RCLCPP_FATAL(
         rclcpp ::get_logger("MbotSerialHardware"),
-        "Joint '%s' has %zu state interfaces found. 2 expected.", joint.name.c_str(),
+        "Joint '%s' has %zu state interfaces. 1-2 expected.", joint.name.c_str(),
         joint.state_interfaces.size());
       return hardware_interface::CallbackReturn::ERROR;
     }
@@ -78,7 +79,14 @@ hardware_interface::CallbackReturn MbotSerial::on_init(
         joint.name.c_str(), hardware_interface::HW_IF_POSITION);
     }
 
-    if (joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
+    if (joint.state_interfaces.size() == 2)
+    {
+      sample_velocity_states_ = true;
+    }
+
+    if (
+      sample_velocity_states_ &&
+      joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
     {
       RCLCPP_FATAL(
         rclcpp ::get_logger("MbotSerialHardware"),
@@ -138,8 +146,12 @@ std::vector<hardware_interface::StateInterface> MbotSerial::export_state_interfa
   {
     state_interfaces.emplace_back(hardware_interface::StateInterface(
       info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_position_states_[i]));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocity_states_[i]));
+
+    if (sample_velocity_states_)
+    {
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocity_states_[i]));
+    }
   }
 
   return state_interfaces;
@@ -200,6 +212,11 @@ hardware_interface::return_type MbotSerial::read(
   {
     double pos1_rad = -(*maybe_pos1) * 2.0 * M_PI / 360.0;
     hw_position_states_[1] = pos1_rad;
+  }
+
+  if (!sample_velocity_states_)
+  {
+    return hardware_interface::return_type::OK;
   }
 
   // Read velocity from motor 1 (in RPM)
