@@ -30,7 +30,7 @@ target_include_directories(
     include
 )
 
-target_link_libraries(mbot_hardware ${SANITIZER_FLAGS} libmbot::libmbot)
+target_link_libraries(mbot_hardware ${SANITIZER_FLAGS} libmbot::mbot)
 
 ament_target_dependencies(
     mbot_hardware
